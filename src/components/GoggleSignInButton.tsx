@@ -1,5 +1,5 @@
 import { useSettings } from '../context/SettingsContext'
-import { useEffect, useState } from 'react'
+import { useRef, useState } from 'react'
 
 interface GoogleSignInButtonProps {
   onIdToken: (idToken: string) => void
@@ -8,28 +8,19 @@ interface GoogleSignInButtonProps {
 
 export function GoogleSignInButton({ onIdToken, disabled }: GoogleSignInButtonProps) {
   const { accent, theme } = useSettings()
-  const [isGoogleReady, setIsGoogleReady] = useState(false)
+  const initialized = useRef(false)
+  const isProcessing = useRef(false)
 
-  // Wait for the Google script to load before allowing the click
-  useEffect(() => {
-    const checkGoogle = () => {
-      if ((window as any).google?.accounts?.id) {
-        setIsGoogleReady(true)
-      } else {
-        setTimeout(checkGoogle, 300)
-      }
-    }
-    checkGoogle()
-  }, [])
-
-  // Detect if on mobile
   const isMobile = /Mobi|Android|iPhone/i.test(navigator.userAgent)
 
   const handleGoogleSignIn = () => {
-    if (disabled || !isGoogleReady) return
+    if (disabled || isProcessing.current) return
+
+    // PREVENT DOUBLE CLICKS
+    isProcessing.current = true
 
     if (isMobile) {
-      // Mobile: use redirect
+      // Mobile Redirect Flow
       const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
       const redirectUri = window.location.origin
       
@@ -40,19 +31,30 @@ export function GoogleSignInButton({ onIdToken, disabled }: GoogleSignInButtonPr
         `response_type=id_token&` +
         `scope=openid%20profile%20email&` +
         `nonce=${Math.random().toString(36).substring(2)}`
+      
     } else {
-      // Desktop: use popup/One Tap
-      const google = (window as any).google
-      google.accounts.id.initialize({
-        client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
-        callback: (response: any) => {
-          if (response.credential) {
-            onIdToken(response.credential)
-          }
-        },
-        use_fedcm_for_prompt: true,
-      })
-      google.accounts.id.prompt()
+      // Desktop Popup Flow - PREVENT DOUBLE INITIALIZATION
+      if (!initialized.current && (window as any).google) {
+        ;(window as any).google.accounts.id.initialize({
+          client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
+          callback: (response: any) => {
+            isProcessing.current = false
+            if (response.credential) {
+              onIdToken(response.credential)
+            }
+          },
+          use_fedcm_for_prompt: true,
+        })
+        initialized.current = true
+      }
+
+      // Prompt the user
+      ;(window as any).google.accounts.id.prompt()
+
+      // Safety unlock: if the popup is blocked or ignored, release the lock after 5 seconds
+      setTimeout(() => {
+        isProcessing.current = false
+      }, 5000)
     }
   }
 
@@ -61,14 +63,29 @@ export function GoogleSignInButton({ onIdToken, disabled }: GoogleSignInButtonPr
   return (
     <button
       onClick={handleGoogleSignIn}
-      disabled={disabled || !isGoogleReady}
+      disabled={disabled}
       className="w-full py-3.5 px-4 rounded-xl font-medium text-sm flex items-center justify-center gap-3 transition-all duration-200"
       style={{
         background: isDark ? 'var(--bg-input)' : 'white',
         color: isDark ? 'var(--text-primary)' : '#1a1a24',
         border: `1px solid ${isDark ? 'var(--border-default)' : '#e5e7eb'}`,
-        opacity: disabled || !isGoogleReady ? 0.5 : 1,
-        cursor: disabled || !isGoogleReady ? 'not-allowed' : 'pointer',
+        opacity: disabled ? 0.5 : 1,
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+      }}
+      onMouseEnter={(e) => {
+        if (!disabled) {
+          e.currentTarget.style.borderColor = accent
+          e.currentTarget.style.boxShadow = `0 0 0 2px ${accent}25, 0 2px 4px rgba(0,0,0,0.1)`
+          if (isDark) e.currentTarget.style.background = `${accent}10`
+        }
+      }}
+      onMouseLeave={(e) => {
+        if (!disabled) {
+          e.currentTarget.style.borderColor = isDark ? 'var(--border-default)' : '#e5e7eb'
+          e.currentTarget.style.boxShadow = '0 1px 2px rgba(0,0,0,0.05)'
+          if (isDark) e.currentTarget.style.background = 'var(--bg-input)'
+        }
       }}
     >
       <svg width="20" height="20" viewBox="0 0 24 24">
@@ -77,7 +94,7 @@ export function GoogleSignInButton({ onIdToken, disabled }: GoogleSignInButtonPr
         <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
         <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
       </svg>
-      <span>{!isGoogleReady ? 'Loading Google...' : 'Continue with Google'}</span>
+      <span>Continue with Google</span>
     </button>
   )
 }
