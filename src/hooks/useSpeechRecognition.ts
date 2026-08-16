@@ -24,13 +24,14 @@ export function useSpeechRecognition(onResult: (text: string) => void, onError?:
     }
 
     try {
-      // Request mic permission synchronously within the click
+      // MOBILE FIX: Request mic permission SYNCHRONOUSLY within the click
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       streamRef.current = stream
 
       const audioCtx = new AudioContext()
       audioCtxRef.current = audioCtx
-      // Resume audio context IMMEDIATELY after creation (required for mobile)
+      
+      // Resume context immediately (Required for mobile)
       await audioCtx.resume()
 
       const source = audioCtx.createMediaStreamSource(stream)

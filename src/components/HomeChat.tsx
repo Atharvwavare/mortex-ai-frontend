@@ -79,7 +79,7 @@ export function HomeChat({ conversationId, onConversationCreated, onActivity, on
     setMessages(msgs)
   }, [])
 
-  const sendMessage = async () => {
+   const sendMessage = async () => {
     const text = input.trim()
     if (!text || loading) return
 
@@ -92,6 +92,19 @@ export function HomeChat({ conversationId, onConversationCreated, onActivity, on
 
     setInput('')
     if (textRef.current) textRef.current.style.height = 'auto'
+
+    // --- ADD THIS BLOCK ---
+    // Instantly show the user's message on the screen
+    const optimisticMessage = {
+      id: Date.now(),
+      content: text,
+      role: 'user',
+      createdAt: new Date().toISOString(),
+      conversationId: convId,
+    } as StoredMessage // <--- This forces TypeScript to accept the object as a StoredMessage
+    setMessages(prev => [...prev, optimisticMessage])
+    // ---------------------
+
     setLoading(true)
     try {
       await client.post('/api/chat', { conversationId: convId, message: text })
