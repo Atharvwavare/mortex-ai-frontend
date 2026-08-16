@@ -70,7 +70,7 @@ export function SignInScreen({ onNext }: { onNext: () => void }) {
             </h2>
             <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
               {mode === 'login' 
-                ? 'Sign in to continue chatting with Mortex AI' 
+                ? 'Sign in to continue enhancing with Mortex AI' 
                 : 'Start your journey with Mortex AI'}
             </p>
           </div>
