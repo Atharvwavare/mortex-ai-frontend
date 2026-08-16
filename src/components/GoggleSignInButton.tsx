@@ -10,25 +10,41 @@ export function GoogleSignInButton({ onIdToken, disabled }: GoogleSignInButtonPr
   const { accent, theme } = useSettings()
   const initialized = useRef(false)
 
+  // Detect if the user is on a mobile device
+  const isMobile = /Mobi|Android|iPhone/i.test(navigator.userAgent)
+
   const handleGoogleSignIn = () => {
     if (disabled) return
 
-    // Initialize exactly ONCE
-    if (!initialized.current && (window as any).google) {
-      ;(window as any).google.accounts.id.initialize({
-        client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
-        callback: (response: any) => {
-          if (response.credential) {
-            onIdToken(response.credential)
-          }
-        },
-        use_fedcm_for_prompt: true,
-      })
-      initialized.current = true
+    if (isMobile) {
+      // --- MOBILE: Use the Redirect Method (100% reliable) ---
+      const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
+      const redirectUri = window.location.origin
+      
+      window.location.href = 
+        `https://accounts.google.com/o/oauth2/v2/auth?` +
+        `client_id=${clientId}&` +
+        `redirect_uri=${redirectUri}&` +
+        `response_type=id_token&` +
+        `scope=openid%20profile%20email&` +
+        `nonce=${Math.random().toString(36).substring(2)}`
+      
+    } else {
+      // --- DESKTOP: Use the normal Popup/One Tap ---
+      if (!initialized.current && (window as any).google) {
+        ;(window as any).google.accounts.id.initialize({
+          client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
+          callback: (response: any) => {
+            if (response.credential) {
+              onIdToken(response.credential)
+            }
+          },
+          use_fedcm_for_prompt: true,
+        })
+        initialized.current = true
+      }
+      ;(window as any).google.accounts.id.prompt()
     }
-
-    // Trigger the prompt
-    ;(window as any).google.accounts.id.prompt()
   }
 
   const isDark = theme === 'dark'

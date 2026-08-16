@@ -7,6 +7,7 @@ interface AuthContextType {
   login: (username: string, password: string) => Promise<void>
   register: (username: string, email: string, password: string) => Promise<void>
   loginWithGoogle: (idToken: string) => Promise<void>
+  handleGoogleRedirect: () => Promise<void>  // <--- ADDED THIS
   logout: () => void
 }
 
@@ -38,6 +39,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     saveSession(res.data.token, res.data.username)
   }
 
+  // --- NEW: Handle the redirect from Google (for mobile) ---
+  const handleGoogleRedirect = async () => {
+    const hash = window.location.hash.substring(1) // Remove the '#'
+    const params = new URLSearchParams(hash)
+    const idToken = params.get('id_token')
+
+    if (idToken) {
+      // Remove the hash from the URL so it doesn't stick around
+      window.history.replaceState({}, document.title, window.location.pathname)
+      
+      // Send it to the backend
+      await loginWithGoogle(idToken)
+    }
+  }
+
   const logout = () => {
     localStorage.clear()
     setToken(null)
@@ -45,7 +61,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ token, username, login, register, loginWithGoogle, logout }}>
+    <AuthContext.Provider value={{ 
+      token, 
+      username, 
+      login, 
+      register, 
+      loginWithGoogle, 
+      handleGoogleRedirect, // <--- EXPOSED
+      logout 
+    }}>
       {children}
     </AuthContext.Provider>
   )

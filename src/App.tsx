@@ -17,7 +17,7 @@ const MIN_WIDTH = 240
 const MAX_WIDTH = 420
 
 function AppInner() {
-  const { token } = useAuth()
+  const { token, handleGoogleRedirect } = useAuth()
   const [screen, setScreen] = useState<Screen>(token ? 'app' : 'splash')
   const [activeTab, setActiveTab] = useState<Tab>('home')
   const [activeChatId, setActiveChatId] = useState<number | null>(null)
@@ -30,6 +30,14 @@ function AppInner() {
   const [refreshKey, setRefreshKey] = useState(0)
   const [customizeOpen, setCustomizeOpen] = useState(false)
   const dragging = useRef(false)
+
+  // --- NEW: Handle Google Redirect Token from mobile ---
+  useEffect(() => {
+    // Check if the URL contains the token after Google redirects back
+    if (window.location.hash && window.location.hash.includes('id_token')) {
+      handleGoogleRedirect()
+    }
+  }, [handleGoogleRedirect])
 
   useEffect(() => {
     const check = () => {
