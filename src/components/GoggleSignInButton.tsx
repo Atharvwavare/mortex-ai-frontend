@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
 import { useSettings } from '../context/SettingsContext'
+import { useRef } from 'react'
 
 interface GoogleSignInButtonProps {
   onIdToken: (idToken: string) => void
@@ -9,65 +9,29 @@ interface GoogleSignInButtonProps {
 export function GoogleSignInButton({ onIdToken, disabled }: GoogleSignInButtonProps) {
   const { accent, theme } = useSettings()
   const initialized = useRef(false)
-  const promptInFlight = useRef(false)
-  const [oneTapFailed, setOneTapFailed] = useState(false)
-  const renderedButtonRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (initialized.current || !(window as any).google) return
-
-    const handleCredential = (response: any) => {
-      promptInFlight.current = false
-      if (response.credential) {
-        onIdToken(response.credential)
-      }
-    }
-
-    ;(window as any).google.accounts.id.initialize({
-      client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
-      callback: handleCredential,
-      use_fedcm_for_prompt: true,
-      auto_select: false,
-    })
-    initialized.current = true
-  }, [onIdToken])
-
-  // Fallback to Google's own rendered button
-  useEffect(() => {
-    if (!oneTapFailed || !renderedButtonRef.current || !(window as any).google) return
-    
-    try {
-      ;(window as any).google.accounts.id.cancel()
-    } catch (e) {}
-
-    // FIX: Use 'outline' so it has a transparent background and matches your dark theme
-    ;(window as any).google.accounts.id.renderButton(renderedButtonRef.current, {
-      theme: 'outline', 
-      size: 'large',
-      shape: 'pill',
-      text: 'continue_with',
-    })
-  }, [oneTapFailed])
 
   const handleGoogleSignIn = () => {
-    if (disabled || promptInFlight.current) return
+    if (disabled) return
 
-    promptInFlight.current = true
+    // Initialize exactly ONCE
+    if (!initialized.current && (window as any).google) {
+      ;(window as any).google.accounts.id.initialize({
+        client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
+        callback: (response: any) => {
+          if (response.credential) {
+            onIdToken(response.credential)
+          }
+        },
+        use_fedcm_for_prompt: true,
+      })
+      initialized.current = true
+    }
+
+    // Trigger the prompt
     ;(window as any).google.accounts.id.prompt()
-
-    setTimeout(() => {
-      if (promptInFlight.current) {
-        promptInFlight.current = false
-        setOneTapFailed(true)
-      }
-    }, 5000)
   }
 
   const isDark = theme === 'dark'
-
-  if (oneTapFailed) {
-    return <div ref={renderedButtonRef} className="w-full" />
-  }
 
   return (
     <button
