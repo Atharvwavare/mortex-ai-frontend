@@ -18,12 +18,21 @@ export function useSpeechRecognition(onResult: (text: string) => void, onError?:
   }, [])
 
   const startVisualizer = useCallback(async () => {
+    // Mobile requires user gesture, so we check if context is suspended
+    if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
+      await audioCtxRef.current.resume()
+    }
+
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
     streamRef.current = stream
-    const audioCtx = new AudioContext()
-    audioCtxRef.current = audioCtx
-    const source = audioCtx.createMediaStreamSource(stream)
-    const analyser = audioCtx.createAnalyser()
+    
+    if (!audioCtxRef.current) {
+      const audioCtx = new AudioContext()
+      audioCtxRef.current = audioCtx
+    }
+
+    const source = audioCtxRef.current.createMediaStreamSource(stream)
+    const analyser = audioCtxRef.current.createAnalyser()
     analyser.fftSize = 64
     source.connect(analyser)
     analyserRef.current = analyser
@@ -38,8 +47,18 @@ export function useSpeechRecognition(onResult: (text: string) => void, onError?:
     tick()
   }, [])
 
-  const start = useCallback(async () => {
-    if (!supported) return
+  // --- FIX: Handle mobile by resuming AudioContext on user click ---
+  const startFromClick = useCallback(async () => {
+    if (!supported) {
+      onError?.('Speech recognition is not supported in this browser.')
+      return
+    }
+
+    // Resume AudioContext if it's suspended (required for mobile)
+    if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
+      await audioCtxRef.current.resume()
+    }
+
     try {
       await startVisualizer()
     } catch {
@@ -73,6 +92,9 @@ export function useSpeechRecognition(onResult: (text: string) => void, onError?:
     recognition.start()
     setListening(true)
   }, [onResult, onError, supported, startVisualizer, stopVisualizer])
+
+  // Use startFromClick instead of start in the parent component
+  const start = startFromClick
 
   const stop = useCallback(() => {
     recognitionRef.current?.stop()
