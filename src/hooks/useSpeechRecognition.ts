@@ -17,50 +17,36 @@ export function useSpeechRecognition(onResult: (text: string) => void, onError?:
     setLevels(new Array(20).fill(0))
   }, [])
 
-  const startVisualizer = useCallback(async () => {
-    // Mobile requires user gesture, so we check if context is suspended
-    if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
-      await audioCtxRef.current.resume()
-    }
-
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-    streamRef.current = stream
-    
-    if (!audioCtxRef.current) {
-      const audioCtx = new AudioContext()
-      audioCtxRef.current = audioCtx
-    }
-
-    const source = audioCtxRef.current.createMediaStreamSource(stream)
-    const analyser = audioCtxRef.current.createAnalyser()
-    analyser.fftSize = 64
-    source.connect(analyser)
-    analyserRef.current = analyser
-
-    const data = new Uint8Array(analyser.frequencyBinCount)
-    const tick = () => {
-      analyser.getByteFrequencyData(data)
-      const bars = Array.from({ length: 20 }, (_, i) => data[i * 2] / 255)
-      setLevels(bars)
-      rafRef.current = requestAnimationFrame(tick)
-    }
-    tick()
-  }, [])
-
-  // --- FIX: Handle mobile by resuming AudioContext on user click ---
-  const startFromClick = useCallback(async () => {
+  const start = useCallback(async () => {
     if (!supported) {
       onError?.('Speech recognition is not supported in this browser.')
       return
     }
 
-    // Resume AudioContext if it's suspended (required for mobile)
-    if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
-      await audioCtxRef.current.resume()
-    }
-
     try {
-      await startVisualizer()
+      // Request mic permission synchronously within the click
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      streamRef.current = stream
+
+      const audioCtx = new AudioContext()
+      audioCtxRef.current = audioCtx
+      // Resume audio context IMMEDIATELY after creation (required for mobile)
+      await audioCtx.resume()
+
+      const source = audioCtx.createMediaStreamSource(stream)
+      const analyser = audioCtx.createAnalyser()
+      analyser.fftSize = 64
+      source.connect(analyser)
+      analyserRef.current = analyser
+
+      const data = new Uint8Array(analyser.frequencyBinCount)
+      const tick = () => {
+        analyser.getByteFrequencyData(data)
+        const bars = Array.from({ length: 20 }, (_, i) => data[i * 2] / 255)
+        setLevels(bars)
+        rafRef.current = requestAnimationFrame(tick)
+      }
+      tick()
     } catch {
       onError?.('Microphone access was blocked. Please allow mic permission and try again.')
       return
@@ -91,10 +77,7 @@ export function useSpeechRecognition(onResult: (text: string) => void, onError?:
     recognitionRef.current = recognition
     recognition.start()
     setListening(true)
-  }, [onResult, onError, supported, startVisualizer, stopVisualizer])
-
-  // Use startFromClick instead of start in the parent component
-  const start = startFromClick
+  }, [onResult, onError, supported, stopVisualizer])
 
   const stop = useCallback(() => {
     recognitionRef.current?.stop()
